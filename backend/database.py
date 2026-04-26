@@ -6,10 +6,12 @@ import os
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./jobtracker.db")
 
-# SQLite needs this extra argument — PostgreSQL doesn't need it
-# We check so the same code works locally (SQLite) and on Render (PostgreSQL)
+# Fix for Render's PostgreSQL URL format (uses postgres:// but SQLAlchemy needs postgresql://)
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
@@ -18,7 +20,6 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
-# Dependency — used in every route to get a DB session
 def get_db():
     db = SessionLocal()
     try:

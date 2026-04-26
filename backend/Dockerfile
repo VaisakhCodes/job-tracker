@@ -1,17 +1,13 @@
-version: "3.9"
+FROM python:3.11-slim
 
-services:
-  db:
-    image: postgres:16
-    container_name: jobtracker_db
-    environment:
-      POSTGRES_USER: tracker_user
-      POSTGRES_PASSWORD: tracker_pass
-      POSTGRES_DB: jobtracker
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+WORKDIR /app
 
-volumes:
-  postgres_data: 
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m spacy download en_core_web_sm
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

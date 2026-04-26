@@ -29,5 +29,7 @@ app.include_router(auth_router.router)
 app.include_router(applications.router)
 app.include_router(analyser.router)
 
-# Serve frontend static files
-app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")
+# Serve frontend — only if the directory exists
+frontend_path = os.path.join(os.path.dirname(__file__), "../frontend")
+if os.path.exists(frontend_path):
+    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
