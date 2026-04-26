@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Tracker — JD Analyser</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/api.js"></script>
+</head>
+<body class="bg-gray-950 text-white min-h-screen">
+
+<nav class="border-b border-gray-800 px-6 py-4 flex justify-between items-center">
+    <h1 class="text-xl font-bold">
+        <a href="index.html" class="text-gray-400 hover:text-white transition">← </a>
+        JD <span class="text-blue-500">Analyser</span>
+    </h1>
+    <button onclick="logout()" class="text-sm text-gray-400 hover:text-red-400 transition">Logout</button>
+</nav>
+
+<div class="max-w-4xl mx-auto px-6 py-8">
+    <p class="text-gray-400 mb-8">Paste a job description and your resume to get an AI-powered fit score and keyword gap analysis.</p>
+
+    <div class="grid md:grid-cols-2 gap-6 mb-6">
+        <div>
+            <label class="text-sm text-gray-400 block mb-2">Job Description *</label>
+            <textarea id="jdText" rows="12" placeholder="Paste the full job description here..."
+                class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm resize-none"></textarea>
+        </div>
+        <div>
+            <label class="text-sm text-gray-400 block mb-2">Your Resume Text *</label>
+            <textarea id="resumeText" rows="12" placeholder="Paste your resume text here..."
+                class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm resize-none"></textarea>
+        </div>
+    </div>
+
+    <button onclick="runAnalysis()"
+        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition mb-8">
+        Analyse Fit
+    </button>
+
+    <!-- Results -->
+    <div id="results" class="hidden">
+
+        <!-- Score Card -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6 flex items-center gap-6">
+            <div class="text-center">
+                <div id="scoreDisplay" class="text-5xl font-bold"></div>
+                <div class="text-xs text-gray-500 mt-1">Fit Score</div>
+            </div>
+            <div class="flex-1">
+                <div id="verdictDisplay" class="text-lg font-medium mb-2"></div>
+                <div class="w-full bg-gray-800 rounded-full h-2">
+                    <div id="scoreBar" class="h-2 rounded-full transition-all duration-700"></div>
+                </div>
+                <div id="matchSummary" class="text-sm text-gray-400 mt-2"></div>
+            </div>
+        </div>
+
+        <!-- Keywords -->
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h3 class="font-medium text-green-400 mb-4">✓ Matched Keywords</h3>
+                <div id="matchedKeywords" class="flex flex-wrap gap-2"></div>
+            </div>
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h3 class="font-medium text-red-400 mb-4">✗ Missing Keywords</h3>
+                <div id="missingKeywords" class="flex flex-wrap gap-2"></div>
+                <p class="text-xs text-gray-500 mt-3">Add these to your resume to improve your score.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading" class="hidden text-center py-12">
+        <div class="text-gray-400">Analysing...</div>
+    </div>
+</div>
+
+<script>
+    requireAuth();
+
+    async function runAnalysis() {
+        const jd = document.getElementById('jdText').value.trim();
+        const resume = document.getElementById('resumeText').value.trim();
+
+        if (!jd || !resume) {
+            alert('Please paste both a job description and your resume text.');
+            return;
+        }
+
+        document.getElementById('loading').classList.remove('hidden');
+        document.getElementById('results').classList.add('hidden');
+
+        const data = await api.analyse(jd, resume);
+
+        document.getElementById('loading').classList.add('hidden');
+
+        if (data.detail) {
+            alert(data.detail);
+            return;
+        }
+
+        // Score display
+        const score = data.fit_score;
+        const scoreColor = score >= 70 ? 'text-green-400' : score >= 40 ? 'text-yellow-400' : 'text-red-400';
+        const barColor = score >= 70 ? 'bg-green-500' : score >= 40 ? 'bg-yellow-500' : 'bg-red-500';
+
+        document.getElementById('scoreDisplay').textContent = score.toFixed(0) + '%';
+        document.getElementById('scoreDisplay').className = `text-5xl font-bold ${scoreColor}`;
+        document.getElementById('verdictDisplay').textContent = data.verdict;
+        document.getElementById('scoreBar').style.width = score + '%';
+        document.getElementById('scoreBar').className = `h-2 rounded-full transition-all duration-700 ${barColor}`;
+        document.getElementById('matchSummary').textContent =
+            `${data.match_count} of ${data.total_jd_keywords} required skills matched`;
+
+        // Keywords
+        const matchedEl = document.getElementById('matchedKeywords');
+        const missingEl = document.getElementById('missingKeywords');
+
+        matchedEl.innerHTML = data.matched_keywords.length
+            ? data.matched_keywords.map(k =>
+                `<span class="bg-green-900/50 text-green-300 text-xs px-3 py-1 rounded-full border border-green-800">${k}</span>`
+              ).join('')
+            : '<span class="text-gray-500 text-sm">No matches found</span>';
+
+        missingEl.innerHTML = data.missing_keywords.length
+            ? data.missing_keywords.map(k =>
+                `<span class="bg-red-900/50 text-red-300 text-xs px-3 py-1 rounded-full border border-red-800">${k}</span>`
+              ).join('')
+            : '<span class="text-green-400 text-sm">No gaps — great match!</span>';
+
+        document.getElementById('results').classList.remove('hidden');
+    }
+
+    function logout() {
+        clearToken();
+        window.location.href = 'login.html';
+    }
+</script>
+</body>
+</html>
